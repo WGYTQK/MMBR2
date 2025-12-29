@@ -1,0 +1,510 @@
+/* 全局基础样式 */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background:
+        linear-gradient(rgba(230, 242, 255, 0.5), rgba(230, 242, 255, 0.5)),
+        url('/static/images/a930a307-2d7c-44f0-9ee1-63c844bc56ff1867872333.png') center/cover no-repeat;
+}
+
+/* 主容器 */
+.main-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    max-width: 92vw;
+    margin: 0 auto;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+/* 内容区域 */
+.content-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    gap: 10px;
+    width: 100%;
+}
+
+/* 会议信息区域 */
+.meeting-info-container {
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.meeting-info-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.meeting-info-item {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.meeting-info-item.compact {
+    flex: 1;
+    min-width: 120px;
+}
+
+.meeting-info-item.full-width {
+    flex: 100%;
+}
+
+.meeting-info-item label {
+    font-size: 0.7rem;
+    color: #0066cc;
+    margin-bottom: 3px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.meeting-info-item input,
+.meeting-info-item select {
+    width: 100%;
+    padding: 5px 6px;
+    border: 1px solid #99c2ff;
+    border-radius: 3px;
+    font-size: 0.75rem;
+    box-sizing: border-box;
+    background: rgba(255, 255, 255, 0.9);
+}
+
+/* 输入区域 */
+.input-section {
+    flex-shrink: 0;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+#message-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #99c2ff;
+    border-radius: 16px;
+    outline: none;
+    font-size: 0.9rem;
+    transition: border-color 0.2s;
+}
+
+#message-input:focus {
+    border-color: #4da6ff;
+    box-shadow: 0 0 0 2px rgba(77, 166, 255, 0.1);
+}
+
+#send-button {
+    position: relative;
+    padding: 0 16px;
+    background-color: #4da6ff;
+    color: white;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
+    min-width: 80px;
+}
+
+#send-button:hover {
+    background-color: #3385ff;
+}
+
+/* 发送按钮加载动画 */
+#send-spinner {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 18px;
+    height: 18px;
+    border: 3px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+#send-button.loading #send-text {
+    visibility: hidden;
+}
+
+#send-button.loading #send-spinner {
+    display: block;
+}
+
+@keyframes spin {
+    to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* 输出区域 */
+.output-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 6px;
+    padding: 10px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.output-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.output-header h3 {
+    margin: 0;
+    color: #0066cc;
+    font-size: 1rem;
+}
+
+.output-window {
+    flex: 1;
+    border: 1px solid #d9e7ff;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 4px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    max-height: calc(100vh - 380px);
+    scroll-behavior: smooth;
+}
+
+/* 历史消息区域 */
+.history-container {
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 6px;
+    overflow: hidden;
+    max-height: 32px;
+    transition: max-height 0.25s ease;
+    margin-top: 8px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.history-container.expanded {
+    max-height: 25vh;
+}
+
+.history-header {
+    padding: 6px 10px;
+    background: rgba(77, 166, 255, 0.1);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 500;
+    color: #0066cc;
+    font-size: 0.8rem;
+}
+
+.history-header:hover {
+    background: rgba(77, 166, 255, 0.15);
+}
+
+.expand-icon {
+    transition: transform 0.25s;
+    font-size: 0.7rem;
+}
+
+.history-container.expanded .expand-icon {
+    transform: rotate(180deg);
+}
+
+.history-content {
+    padding: 8px 10px;
+    max-height: calc(25vh - 40px);
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    font-size: 0.75rem;
+}
+
+.message-item {
+    padding: 6px 0;
+    border-bottom: 1px solid #e6f0ff;
+    color: #555;
+    display: flex;
+    gap: 8px;
+}
+
+.message-item:last-child {
+    border-bottom: none;
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(240, 247, 255, 0.3);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: rgba(77, 166, 255, 0.5);
+    border-radius: 3px;
+}
+
+/* 装饰气泡 */
+.bubble {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.85);
+    padding: 4px 8px;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    font-size: 0.7rem;
+    color: #0066cc;
+    animation: float-up 10s linear forwards;
+    pointer-events: none;
+    max-width: 120px;
+    word-break: break-word;
+}
+
+@keyframes float-up {
+    to {
+        transform: translateY(-100vh);
+    }
+}
+
+/* Toast通知样式 */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 24px;
+    border-radius: 4px;
+    color: white;
+    z-index: 1000;
+    animation: slide-up 0.3s ease;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    max-width: 90%;
+    text-align: center;
+}
+
+.toast-success {
+    background-color: #4CAF50;
+}
+
+.toast-error {
+    background-color: #F44336;
+}
+
+.toast-warning {
+    background-color: #FF9800;
+}
+
+.toast-info {
+    background-color: #2196F3;
+}
+
+.fade-out {
+    animation: fade-out 0.3s ease forwards;
+}
+
+@keyframes slide-up {
+    from { opacity: 0; transform: translate(-50%, 20px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+/* 选项对话框样式 */
+.message-with-options {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 15px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border-left: 4px solid #4da6ff;
+}
+
+.message-content {
+    color: #333;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+}
+
+.message-question {
+    color: #0066cc;
+    font-weight: bold;
+    margin-bottom: 12px;
+    font-size: 0.95rem;
+}
+
+.options-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.option-button {
+    padding: 8px 16px;
+    background: #e6f2ff;
+    color: #0066cc;
+    border: 1px solid #99c2ff;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.85rem;
+}
+
+.option-button:hover {
+    background-color: #cce0ff;
+    border-color: #4da6ff;
+}
+
+.option-button.selected {
+    background-color: #4da6ff;
+    color: white;
+    border-color: #4da6ff;
+}
+
+.option-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.auto-send-indicator {
+    color: #888;
+    font-size: 0.8rem;
+    margin-left: 8px;
+    font-style: italic;
+}
+
+/* 更新相关样式 */
+.update-notice {
+    background-color: #f6ffed;
+    border: 1px solid #d9f7be;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin: 6px 0;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+
+.update-notice strong {
+    color: #389e0d;
+    display: inline;
+    margin-right: 8px;
+}
+
+.update-details {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-top: 0;
+}
+
+.update-details div {
+    display: flex;
+    align-items: center;
+    color: #666;
+    margin: 0;
+}
+
+.update-details div::before {
+    content: "•";
+    color: #73d13d;
+    margin-right: 4px;
+}
+
+.field-updated {
+    animation: highlightUpdate 0.8s;
+}
+
+
+/* 添加到styles.css */
+.confirm-button {
+    padding: 8px 16px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    margin-top: 8px;
+    width: 100%;
+    transition: background-color 0.2s;
+}
+
+.confirm-button:hover {
+    background-color: #3e8e41;
+}
+
+.message-with-options {
+    position: relative;
+    z-index: 100;
+    background: white;
+    border: 1px solid #4da6ff;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+    margin-bottom: 15px;
+}
+
+.message-separator {
+    height: 1px;
+    background: #e0e0e0;
+    margin: 10px 0;
+}
+
+.message-block {
+    margin-bottom: 8px;
+    line-height: 1.5;
+}
+
+
+@keyframes highlightUpdate {
+    0% { background-color: #f6ffed; box-shadow: 0 0 0 2px #d9f7be; }
+    100% { background-color: white; box-shadow: none; }
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .meeting-info-item.compact {
+        flex: 1 0 calc(50% - 6px);
+    }
+
+    .main-container {
+        max-width: 96vw;
+        padding: 6px;
+    }
+
+    .input-section {
+        flex-direction: column;
+    }
+
+    #message-input {
+        width: 100%;
+        margin-bottom: 8px;
+    }
+
+    #send-button {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .meeting-info-item.compact {
+        flex: 1 0 100%;
+    }
+}
