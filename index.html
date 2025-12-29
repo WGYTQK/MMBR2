@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AUKS_会议预约助手</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+    <!-- 装饰气泡区域 -->
+    <div class="decorative-bubbles" id="bubbles-container"></div>
+
+    <!-- 主容器 -->
+    <div class="main-container">
+        <div class="content-wrapper">
+            <h1>AUKS_会议预约助手</h1>
+            <div id="status">状态: 准备就绪</div>
+
+            <!-- 会议信息区域 -->
+            <div class="meeting-info-container">
+                <div class="meeting-info-row">
+                    <div class="meeting-info-item compact">
+                        <label for="meeting-date">日期</label>
+                        <input type="text" id="meeting-date" value="明天">
+                    </div>
+                    <div class="meeting-info-item compact">
+                        <label for="meeting-time">时间</label>
+                        <input type="text" id="meeting-time" value="下午三点">
+                    </div>
+                    <div class="meeting-info-item compact">
+                        <label for="meeting-type">形式</label>
+                        <select id="meeting-type">
+                            <option value="线上Webex">Webex</option>
+                            <option value="线下会议室">会议室</option>
+                            <option value="混合模式">线上+线下</option>
+                        </select>
+                    </div>
+                    <div class="meeting-info-item compact">
+                        <label for="meeting-topic">主题</label>
+                        <input type="text" id="meeting-topic" value="Sagent">
+                    </div>
+                </div>
+                <div class="meeting-info-row">
+                    <div class="meeting-info-item full-width">
+                        <label for="meeting-attendees">与会人员</label>
+                        <input type="text" id="meeting-attendees" value="毛裤侠">
+                    </div>
+                </div>
+            </div>
+
+            <!-- 输入区域 -->
+            <div class="input-section">
+                <input type="text" id="message-input" placeholder="输入消息..." autofocus>
+                <button id="send-button">
+                    <span id="send-text">发送</span>
+                    <span id="send-spinner" class="spinner"></span>
+                </button>
+            </div>
+
+            <!-- 输出区域 -->
+            <div class="output-section">
+                <div class="output-header">
+                    <h3>Sagent 输出</h3>
+                    <button id="scroll-down-btn" title="滚动到底部">↓</button>
+                </div>
+                <div id="agent-output" class="output-window">会议助手已启动，请输入您的需求...</div>
+            </div>
+
+            <!-- 历史消息区域 -->
+            <div class="history-container" id="history-container">
+                <div class="history-header" id="history-toggle">
+                    <span>历史消息</span>
+                    <span class="expand-icon">▼</span>
+                </div>
+                <div class="history-content" id="message-history"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
