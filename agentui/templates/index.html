@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AUKS_会议预约助手</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💬</text></svg>">
+    <meta name="description" content="智能会议预约助手">
+</head>
+<body>
+    <!-- 装饰气泡区域 -->
+    <div class="decorative-bubbles" id="bubbles-container" aria-hidden="true"></div>
+
+    <!-- 主容器 -->
+    <div class="main-container">
+        <div class="content-wrapper">
+            <!-- 头部 -->
+            <div class="app-header">
+                <h1>AUKS_会议预约助手</h1>
+                <div class="status-group">
+                    <div id="status">状态: <span class="status-text ready">准备就绪</span></div>
+                    <button id="reset-btn" class="icon-btn" title="重置会话">🔄</button>
+                </div>
+            </div>
+
+            <!-- 输入区域 -->
+            <div class="input-section">
+                <input type="text" id="message-input"
+                       placeholder="输入消息，按Enter发送..."
+                       aria-label="消息输入框"
+                       autofocus>
+                <button id="send-button" aria-label="发送消息">
+                    <span id="send-text">发送</span>
+                    <span id="send-spinner" class="spinner" style="display: none;"></span>
+                </button>
+            </div>
+
+            <!-- 输出区域 -->
+            <div class="output-section">
+                <div class="output-header">
+                    <h3>Sagent 输出</h3>
+                    <div class="output-controls">
+                        <button id="clear-output-btn" class="small-btn" title="清空输出">🗑️</button>
+                        <button id="scroll-down-btn" class="small-btn" title="滚动到底部">↓</button>
+                    </div>
+                </div>
+                <div id="agent-output" class="output-window" role="log" aria-live="polite">
+                    会议助手已启动，请输入您的需求...
+                </div>
+            </div>
+
+            <!-- 历史消息区域 -->
+            <div class="history-container" id="history-container">
+                <div class="history-header" id="history-toggle" role="button" aria-expanded="false">
+                    <span>历史消息</span>
+                    <span class="expand-icon">▼</span>
+                </div>
+                <div class="history-content" id="message-history" aria-label="历史消息列表"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知容器 -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- 脚本 -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
