@@ -1,7 +1,7 @@
 import requests
 import json
 
-base_url = "http://192.168.10.101:5008/external/options"  # 注意修改为正确的端点
+base_url = "http://192.168.10.103:5008/external/options"  # 注意修改为正确的端点
 
 params1 = {
     "type": "0",
@@ -39,6 +39,8 @@ params3 = {
 }
 try:
     # response = requests.get(base_url, params=params1)
+    response = requests.get(base_url, params=params3)
+    response = requests.get(base_url, params=params2)
     response = requests.get(base_url, params=params3)
     response = requests.get(base_url, params=params2)
     print(f"状态码: {response.status_code}")

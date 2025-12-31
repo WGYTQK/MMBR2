@@ -6,10 +6,10 @@
     <title>AUKS_会议预约助手</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💬</text></svg>">
-    <meta name="description" content="智能会议预约助手">
+    <meta name="description" content="智能会议预约助手 - 支持多表单收集">
 </head>
 <body>
-    <!-- 装饰气泡区域 -->
+    <!-- 装饰气泡 -->
     <div class="decorative-bubbles" id="bubbles-container" aria-hidden="true"></div>
 
     <!-- 主容器 -->
@@ -20,8 +20,24 @@
                 <h1>AUKS_会议预约助手</h1>
                 <div class="status-group">
                     <div id="status">状态: <span class="status-text ready">准备就绪</span></div>
+                    <div class="form-count" id="form-count">待处理: 0</div>
                     <button id="reset-btn" class="icon-btn" title="重置会话">🔄</button>
                 </div>
+            </div>
+
+            <!-- 表单收集区 -->
+            <div class="forms-container" id="forms-container">
+                <!-- 动态生成的表单会在这里 -->
+            </div>
+
+            <!-- 全局操作栏 -->
+            <div class="global-actions" id="global-actions" style="display: none;">
+                <button id="submit-all-btn" class="submit-all-btn">
+                    📨 发送所有表单
+                </button>
+                <button id="clear-all-btn" class="secondary-btn">
+                    清空所有
+                </button>
             </div>
 
             <!-- 输入区域 -->
@@ -48,15 +64,6 @@
                 <div id="agent-output" class="output-window" role="log" aria-live="polite">
                     会议助手已启动，请输入您的需求...
                 </div>
-            </div>
-
-            <!-- 历史消息区域 -->
-            <div class="history-container" id="history-container">
-                <div class="history-header" id="history-toggle" role="button" aria-expanded="false">
-                    <span>历史消息</span>
-                    <span class="expand-icon">▼</span>
-                </div>
-                <div class="history-content" id="message-history" aria-label="历史消息列表"></div>
             </div>
         </div>
     </div>
