@@ -1,690 +1,510 @@
 // ====== 全局变量 ======
-let agentOutputBuffer = "";
-let isTyping = false;
-let typingInterval;
-let optionsCheckInterval;
-let currentConversationId = null;
-let isShowingOptions = false;
-let pendingMessage = null;
-let isProcessing = false;
-let processedOptionIds = new Set();
+let activeForms = new Map();  // 当前显示的表单
+let formsCheckInterval;
 
-// ====== 工具函数 ======
-function debounce(func, wait) {
-    let timeout;
-    return function(...args) {
-        clearTimeout(timeout);
-        timeout = setTimeout(() => func.apply(this, args), wait);
-    };
-}
-
-function showToast(message, type = 'info', duration = 3000) {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.textContent = message;
-    container.appendChild(toast);
-
-    setTimeout(() => {
-        toast.classList.add('fade-out');
-        setTimeout(() => toast.remove(), 300);
-    }, duration);
-}
-
-function updateStatus(text, isError = false) {
-    const el = document.getElementById('status');
-    if (!el) return;
-
-    el.innerHTML = `状态: <span class="status-text ${isError ? 'error' : 'ready'}">${text}</span>`;
-}
-
-function lockUI(lock = true) {
-    const elements = [
-        '#send-button',
-        '#message-input',
-        '#meeting-date',
-        '#meeting-time',
-        '#meeting-type',
-        '#meeting-topic',
-        '#meeting-attendees',
-        '.option-button',
-        '#reset-btn'
-    ];
-
-    elements.forEach(selector => {
-        const el = document.querySelector(selector);
-        if (el) {
-            el.disabled = lock;
-            if (lock) {
-                el.classList.add('disabled-ui');
-            } else {
-                el.classList.remove('disabled-ui');
-            }
-        }
-    });
-}
-
-// ====== 消息处理 ======
-function typeWriter(content, isNewMessage = true) {
-    if (isTyping) {
-        clearInterval(typingInterval);
-        isTyping = false;
-    }
-
-    const outputEl = document.getElementById('agent-output');
-    if (!outputEl) return;
-
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-    if (isNewMessage) {
-        addToHistory(timestamp, content);
-    }
-
-    const messageBlock = document.createElement('div');
-    messageBlock.className = 'message-block';
-    messageBlock.innerHTML = `<div class="message-timestamp">${timestamp}</div><div class="message-content">${content}</div>`;
-    outputEl.appendChild(messageBlock);
-
-    if (isNewMessage && !content.includes('[自动选择]')) {
-        const contentDiv = messageBlock.querySelector('.message-content');
-        const originalText = contentDiv.textContent;
-        contentDiv.textContent = '';
-
-        let i = 0;
-        isTyping = true;
-
-        typingInterval = setInterval(() => {
-            if (i < originalText.length) {
-                contentDiv.textContent += originalText.charAt(i);
-                i++;
-                outputEl.scrollTop = outputEl.scrollHeight;
-            } else {
-                clearInterval(typingInterval);
-                isTyping = false;
-            }
-        }, 30);
-    } else {
-        outputEl.scrollTop = outputEl.scrollHeight;
-    }
-}
-
-function displayMessageWithOptions(data) {
-    const outputEl = document.getElementById('agent-output');
-    if (!outputEl) return;
-
-    // 生成更唯一ID
-    const optionId = `option_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    // 更严格的重复检查
-    if (processedOptionIds.has(optionId)) {
-        console.log('选项已处理过，跳过显示:', data.question);
-        return;
-    }
-
-    // 检查DOM是否已经存在相同问题
-    const existingQuestions = document.querySelectorAll('.message-question');
-    const isDuplicate = Array.from(existingQuestions).some(el =>
-        el.textContent === data.question &&
-        !el.closest('.message-with-options').classList.contains('processed')
-    );
-
-    if (isDuplicate) {
-        console.log('DOM中已存在相同问题，跳过显示');
-        return;
-    }
-
-    processedOptionIds.add(optionId);
-    console.log('显示新选项:', data.question, 'ID:', optionId);
-
-    // 创建消息容器
-    const messageDiv = document.createElement('div');
-    messageDiv.className = 'message-with-options';
-    messageDiv.dataset.optionId = optionId;
-    messageDiv.dataset.optionType = data.type;
-
-    // 添加时间戳
-    const timestampDiv = document.createElement('div');
-    timestampDiv.className = 'message-timestamp';
-    timestampDiv.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    messageDiv.appendChild(timestampDiv);
-
-    // 添加消息内容
-    if (data.message && data.message.trim()) {
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'message-content';
-        contentDiv.textContent = data.message;
-        messageDiv.appendChild(contentDiv);
-    }
-
-    // 添加问题
-    const questionDiv = document.createElement('div');
-    questionDiv.className = 'message-question';
-    questionDiv.textContent = data.question;
-    messageDiv.appendChild(questionDiv);
-
-    // 添加选项容器
-    const optionsContainer = document.createElement('div');
-    optionsContainer.className = 'options-container';
-
-    // 添加各个选项按钮 - 使用事件委托而不是直接绑定
-    data.options.forEach(option => {
-        const button = document.createElement('button');
-        button.className = 'option-button';
-        button.textContent = option.text;
-        button.dataset.value = option.value;
-        button.dataset.optionId = optionId; // 添加optionId到按钮
-        optionsContainer.appendChild(button);
-    });
-
-    messageDiv.appendChild(optionsContainer);
-    outputEl.appendChild(messageDiv);
-    outputEl.scrollTop = outputEl.scrollHeight;
-
-    if (data.type === '1') {
-        playNotificationSound();
-        isShowingOptions = true;
-        showToast('请选择选项', 'info');
-    }
-
-    // === 关键修复：使用事件委托，避免重复绑定 ===
-    // 移除旧的委托监听器（如果存在）
-    const existingListener = messageDiv._clickListener;
-    if (existingListener) {
-        optionsContainer.removeEventListener('click', existingListener);
-    }
-
-    // 添加新的事件委托监听器
-    const clickHandler = (e) => {
-        if (e.target.classList.contains('option-button') && !e.target.disabled) {
-            const value = e.target.dataset.value;
-            const text = e.target.textContent;
-            const optionId = e.target.dataset.optionId;
-            const optionType = data.type;
-
-            handleOptionSelection(value, text, optionId, optionType);
-        }
-    };
-
-    optionsContainer.addEventListener('click', clickHandler);
-    messageDiv._clickListener = clickHandler; // 保存引用以便后续移除
-}
-
-function handleOptionSelection(value, text, optionId, optionType) {
-    console.log('处理选项选择:', text, 'type:', optionType, 'ID:', optionId);
-
-    // === 关键修复：立即移除事件监听器 ===
-    const optionElement = document.querySelector(`[data-option-id="${optionId}"]`);
-    if (optionElement) {
-        const optionsContainer = optionElement.querySelector('.options-container');
-        if (optionsContainer && optionElement._clickListener) {
-            optionsContainer.removeEventListener('click', optionElement._clickListener);
-            delete optionElement._clickListener;
-        }
-
-        // 标记为已处理
-        optionElement.classList.add('processed');
-    }
-
-    // 立即从已处理集合中移除
-    processedOptionIds.delete(optionId);
-
-    // 禁用所有相同optionId的按钮
-    const optionButtons = document.querySelectorAll(`[data-option-id="${optionId}"] .option-button`);
-    optionButtons.forEach(btn => {
-        btn.disabled = true;
-        btn.style.pointerEvents = 'none';
-        if (btn.dataset.value === value) {
-            btn.classList.add('selected');
-            if (optionType === '1') {
-                btn.innerHTML += ' <span class="auto-send-indicator">(自动发送中...)</span>';
-            }
-        }
-    });
-
-    if (optionType === '1') {
-        // 防重复检查
-        const sendingKey = `sending_${optionId}`;
-        if (sessionStorage.getItem(sendingKey)) {
-            console.log('该选项已在发送中，跳过');
-            return;
-        }
-        sessionStorage.setItem(sendingKey, 'true');
-
-        setTimeout(() => {
-            sessionStorage.removeItem(sendingKey);
-        }, 3000);
-
-        setTimeout(() => {
-            const input = document.getElementById('message-input');
-            input.value = text;
-            sendMessage(true, value);
-            isShowingOptions = false;
-
-            // 可选：淡出选项界面
-            if (optionElement) {
-                optionElement.style.opacity = '0.5';
-                optionElement.style.transition = 'opacity 0.3s';
-                setTimeout(() => {
-                    if (optionElement.parentNode) {
-                        optionElement.remove();
-                    }
-                }, 300);
-            }
-        }, 300);
-    } else {
-        isShowingOptions = false;
-    }
-}
-
-function addToHistory(timestamp, message) {
-    const historyDiv = document.getElementById('message-history');
-    if (!historyDiv) return;
-
-    const msgDiv = document.createElement('div');
-    msgDiv.className = 'message-item';
-    msgDiv.textContent = `${timestamp}: ${message.substring(0, 100)}${message.length > 100 ? '...' : ''}`;
-    historyDiv.appendChild(msgDiv);
-    historyDiv.scrollTop = historyDiv.scrollHeight;
-}
-
-// ====== API交互 ======
-async function checkForOptions() {
-    if (isShowingOptions || isProcessing) {
-        return;
-    }
-
+// ====== 表单管理 ======
+async function checkForForms() {
     try {
-        const response = await fetch('/api/options');
-        if (!response.ok) {
-            throw new Error(`HTTP错误: ${response.status}`);
-        }
-
+        console.log('? 检查全局表单...');
+        
+        const response = await fetch('/api/forms');
         const data = await response.json();
-        console.log('检查选项:', data.status, 'type:', data.type || 'none', 'question:', data.question ? data.question.substring(0, 30) : 'none');
-
-        if (data.status === "options") {
-            // === 额外检查：如果正在显示相同问题，跳过 ===
-            if (isShowingOptions) {
-                console.log('正在显示选项，跳过新选项检查');
-                return;
-            }
-
-            // 检查DOM是否已经存在相同问题
-            const existingQuestions = document.querySelectorAll('.message-question');
-            const isDuplicate = Array.from(existingQuestions).some(el => {
-                const questionText = el.textContent.trim();
-                const newQuestion = data.question ? data.question.trim() : '';
-                return questionText === newQuestion && questionText !== '';
+        
+        console.log('? 获取全局表单响应:', {
+            status: data.status,
+            count: data.count,
+            is_global: data.is_global
+        });
+        
+        if (data.status === "success") {
+            // 更新表单计数
+            updateFormCount(data.count);
+            
+            // 处理新表单
+            data.forms.forEach(form => {
+                if (!activeForms.has(form.form_id)) {
+                    console.log(`? 发现新全局表单: ${form.form_id}`, {
+                        type: form.type,
+                        question: form.question,
+                        source: form.source_ip || 'unknown'
+                    });
+                    
+                    displayForm(form);
+                    activeForms.set(form.form_id, {
+                        ...form,
+                        selected_text: '',
+                        form_data: {}
+                    });
+                }
             });
 
-            if (isDuplicate) {
-                console.log('DOM中已存在相同问题，跳过处理:', data.question.substring(0, 30));
-                return;
-            }
-
-            if (isTyping) {
-                clearInterval(typingInterval);
-                isTyping = false;
-                const outputEl = document.getElementById('agent-output');
-                if (outputEl) {
-                    const lastMessage = outputEl.querySelector('.message-block:last-child .message-content');
-                    if (lastMessage) {
-                        agentOutputBuffer = lastMessage.textContent;
-                    }
+            // 清理已不存在的表单
+            const existingFormIds = data.forms.map(f => f.form_id);
+            activeForms.forEach((form, formId) => {
+                if (!existingFormIds.includes(formId)) {
+                    console.log(`?? 清理已删除的表单: ${formId}`);
+                    removeForm(formId);
                 }
-            }
-
-            if (data.type === "0") {
-                console.log('处理type=0更新');
-                handleUpdateData(data.update_data);
-                showToast('会议信息已更新', 'success');
-            } else if (data.type === "1") {
-                console.log('处理type=1选项');
-                isShowingOptions = true;
-                handleQuestionOptions(data);
-                showToast('请选择选项', 'info');
-            }
-        } else if (data.status === "no_options") {
-            isShowingOptions = false;
+            });
         }
     } catch (error) {
-        console.error('获取选项失败:', error);
+        console.error('? 获取表单失败:', error);
     }
 }
 
-function handleQuestionOptions(data) {
-    displayMessageWithOptions(data);
-}
+function displayForm(form) {
+    console.log('? 显示全局表单:', {
+        form_id: form.form_id,
+        type: form.type,
+        question: form.question,
+        source: form.source_ip || '未知来源'
+    });
 
-function handleUpdateData(updateData) {
-    if (!updateData) return;
+    const container = document.getElementById('forms-container');
+    if (!container) {
+        console.error('? 找不到表单容器');
+        return;
+    }
 
-    console.log('处理更新数据:', updateData);
+    const formDiv = document.createElement('div');
+    formDiv.className = 'form-card global-form';
+    formDiv.dataset.formId = form.form_id;
+    formDiv.dataset.formType = form.type;
+    
+    // 添加全局表单标识
+    const isGlobal = form.is_global || form.source_ip;
+    
+    // 表单头部
+    const header = document.createElement('div');
+    header.className = 'form-header';
 
-    const fields = {
-        'meeting-date': updateData.date,
-        'meeting-time': updateData.time,
-        'meeting-type': updateData.type,
-        'meeting-topic': updateData.topic,
-        'meeting-attendees': updateData.attendees
-    };
+    const title = document.createElement('h4');
+    title.textContent = form.question || '请选择';
+    
+    // 如果是全局表单，添加来源标识
+    if (isGlobal && form.source_ip) {
+        const sourceSpan = document.createElement('span');
+        sourceSpan.className = 'form-source';
+        sourceSpan.textContent = ` [来自: ${form.source_ip}]`;
+        sourceSpan.style.cssText = 'font-size: 0.8em; color: #666; font-weight: normal;';
+        title.appendChild(sourceSpan);
+    }
+    
+    header.appendChild(title);
 
-    let hasUpdate = false;
-    Object.entries(fields).forEach(([id, value]) => {
-        if (value) {
-            const el = document.getElementById(id);
-            if (el) {
-                const oldValue = el.value;
-                if (oldValue !== value) {
-                    el.value = value;
-                    el.classList.add('field-updated');
-                    setTimeout(() => el.classList.remove('field-updated'), 1000);
-                    hasUpdate = true;
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'close-form-btn';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.title = '关闭';
+    closeBtn.addEventListener('click', () => {
+        removeForm(form.form_id);
+        showToast('表单已关闭', 'info');
+    });
+    header.appendChild(closeBtn);
+
+    formDiv.appendChild(header);
+
+    // 表单消息
+    if (form.message && form.message.trim()) {
+        const message = document.createElement('div');
+        message.className = 'form-message';
+        message.textContent = form.message;
+        formDiv.appendChild(message);
+    }
+
+    // 根据类型生成不同内容
+    if (form.type === '1') {
+        // 选择题
+        const optionsContainer = document.createElement('div');
+        optionsContainer.className = 'form-options';
+
+        form.options.forEach(option => {
+            const btn = document.createElement('button');
+            btn.className = 'form-option-btn';
+            btn.textContent = option.text;
+            btn.dataset.value = option.value;
+            btn.dataset.formId = form.form_id;
+
+            btn.addEventListener('click', (e) => {
+                handleOptionSelect(form.form_id, option.value, option.text);
+                // 标记为已选中
+                optionsContainer.querySelectorAll('.form-option-btn').forEach(b => {
+                    b.classList.remove('selected');
+                });
+                btn.classList.add('selected');
+            });
+
+            optionsContainer.appendChild(btn);
+        });
+
+        formDiv.appendChild(optionsContainer);
+
+        // 提交按钮
+        const submitBtn = document.createElement('button');
+        submitBtn.className = 'form-submit-btn choice-submit-btn';
+        submitBtn.textContent = '提交选择';
+        submitBtn.dataset.formId = form.form_id;
+
+        submitBtn.addEventListener('click', () => {
+            const formData = activeForms.get(form.form_id);
+            if (!formData || !formData.selected_text) {
+                showToast('请先选择一个选项', 'warning');
+                return;
+            }
+            submitSingleForm(form.form_id);
+        });
+
+        formDiv.appendChild(submitBtn);
+
+    } else if (form.type === '2') {
+        // 输入表单
+        const inputsContainer = document.createElement('div');
+        inputsContainer.className = 'form-inputs';
+
+        form.options.forEach((option, index) => {
+            const inputGroup = document.createElement('div');
+            inputGroup.className = 'form-input-group';
+
+            const label = document.createElement('label');
+            label.textContent = option.text;
+            label.htmlFor = `input_${form.form_id}_${index}`;
+            inputGroup.appendChild(label);
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.id = `input_${form.form_id}_${index}`;
+            input.className = 'form-input';
+            input.placeholder = `请输入${option.text}`;
+            input.dataset.field = option.value || option.text;
+            input.dataset.formId = form.form_id;
+
+            input.addEventListener('input', () => {
+                input.classList.remove('error');
+            });
+
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    handleFormSubmit(form.form_id);
                 }
-            }
-        }
-    });
+            });
 
-    if (hasUpdate) {
-        showUpdateNotification(updateData);
-    }
-}
+            inputGroup.appendChild(input);
+            inputsContainer.appendChild(inputGroup);
+        });
 
-function showUpdateNotification(data) {
-    const outputEl = document.getElementById('agent-output');
-    if (!outputEl) return;
+        formDiv.appendChild(inputsContainer);
 
-    const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const notice = document.createElement('div');
-    notice.className = 'update-notice';
+        // 提交按钮
+        const submitBtn = document.createElement('button');
+        submitBtn.className = 'form-submit-btn';
+        submitBtn.textContent = '提交此表单';
+        submitBtn.dataset.formId = form.form_id;
 
-    let detailsHtml = '';
-    const fields = [
-        { key: 'date', label: '会议日期' },
-        { key: 'time', label: '会议时间' },
-        { key: 'type', label: '会议形式' },
-        { key: 'topic', label: '会议主题' },
-        { key: 'attendees', label: '与会人员' }
-    ];
+        submitBtn.addEventListener('click', () => {
+            handleFormSubmit(form.form_id);
+        });
 
-    fields.forEach(field => {
-        if (data[field.key]) {
-            detailsHtml += `<div><strong>${field.label}:</strong> ${data[field.key]}</div>`;
-        }
-    });
-
-    notice.innerHTML = `
-        <div class="update-header">
-            <strong>📅 会议信息已更新</strong>
-            <span class="update-time">${now}</span>
-        </div>
-        <div class="update-details">
-            ${detailsHtml}
-        </div>
-    `;
-
-    if (outputEl.firstChild) {
-        outputEl.insertBefore(notice, outputEl.firstChild);
-    } else {
-        outputEl.appendChild(notice);
+        formDiv.appendChild(submitBtn);
     }
 
-    outputEl.scrollTop = 0;
+    // 如果是全局表单，添加提示
+    if (isGlobal) {
+        const globalNote = document.createElement('div');
+        globalNote.className = 'global-form-note';
+        globalNote.style.cssText = `
+            margin-top: 10px;
+            padding: 5px;
+            background: #f0f7ff;
+            border-radius: 3px;
+            font-size: 0.85em;
+            color: #0066cc;
+            border-left: 3px solid #0066cc;
+        `;
+        globalNote.textContent = '?? 这是全局表单，所有用户都能看到';
+        formDiv.appendChild(globalNote);
+    }
 
-    setTimeout(() => {
-        notice.style.opacity = '0';
-        notice.style.transition = 'opacity 0.5s';
-        setTimeout(() => {
-            if (notice.parentNode) {
-                notice.remove();
-            }
-        }, 500);
-    }, 3000);
+    container.appendChild(formDiv);
+
+    // 滚动到新表单
+    formDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // 显示通知
+    const formTypeText = form.type === '1' ? '选择' : '输入';
+    showToast(`收到新的${formTypeText}表单`, 'info');
 }
 
-// ====== 发送消息 ======
-async function sendMessage(isAutoSend = false, optionValue = '') {
-    if (isProcessing) {
-        showToast('正在处理上一个请求，请稍候...', 'warning');
+function handleOptionSelect(formId, value, text) {
+    const form = activeForms.get(formId);
+    if (!form) return;
+
+    form.selected_text = text;
+    form.selected_value = value;
+
+    console.log(`表单 ${formId} 选择: ${text}`);
+}
+
+function handleFormSubmit(formId) {
+    const form = activeForms.get(formId);
+    if (!form) return;
+
+    if (form.type === '2') {
+        const inputs = document.querySelectorAll(`[data-form-id="${formId}"] .form-input`);
+        const formData = {};
+        let isValid = true;
+        let errorField = '';
+
+        inputs.forEach(input => {
+            const value = input.value.trim();
+            const field = input.dataset.field;
+
+            if (!value) {
+                isValid = false;
+                errorField = field;
+                input.classList.add('error');
+            } else {
+                input.classList.remove('error');
+                formData[field] = value;
+            }
+        });
+
+        if (!isValid) {
+            showToast(`请填写${errorField}`, 'warning');
+            return;
+        }
+
+        form.form_data = formData;
+    }
+
+    submitSingleForm(formId);
+}
+
+async function submitSingleForm(formId) {
+    const form = activeForms.get(formId);
+    if (!form) {
+        console.error('表单不存在:', formId);
         return;
     }
 
-    const input = document.getElementById('message-input');
-    const message = input.value.trim();
-    const sendBtn = document.getElementById('send-button');
-
-    if (!message) {
-        showToast('请输入消息内容', 'warning');
-        return;
-    }
-
-    sendBtn.classList.add('loading');
-    isProcessing = true;
-    lockUI(true);
-    updateStatus("处理中...");
-
-    const meetingDate = document.getElementById('meeting-date').value;
-    const meetingTime = document.getElementById('meeting-time').value;
-    const meetingType = document.getElementById('meeting-type').value;
-    const meetingTopic = document.getElementById('meeting-topic').value;
-    const meetingAttendees = document.getElementById('meeting-attendees').value;
-
-    const fullMessage = `会议信息: 日期: ${meetingDate} 时间: ${meetingTime} 形式: ${meetingType} 主题: ${meetingTopic} 与会人员: ${meetingAttendees}
-
-用户需求: ${isAutoSend ? `[自动选择] ${message}` : message}`;
+    console.log('? 提交全局表单:', formId, form);
 
     try {
-        const response = await fetch('/post', {
+        const payload = {
+            form_id: formId,
+            type: form.type,
+            form_data: {
+                ...(form.selected_text && { selected_text: form.selected_text }),
+                ...form.form_data
+            }
+        };
+
+        const response = await fetch('/api/submit_form', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+        console.log('提交响应:', data);
+
+        if (data.status === 'success') {
+            // 发送消息
+            const input = document.getElementById('message-input');
+            input.value = data.message_text;
+
+            // 发送消息并等待完成
+            await sendMessage(true, formId);
+
+            // 移除表单
+            removeForm(formId);
+            showToast('表单已提交', 'success');
+        } else {
+            showToast(data.message || '提交失败', 'error');
+        }
+    } catch (error) {
+        console.error('提交表单失败:', error);
+        showToast('提交失败，请重试', 'error');
+    }
+}
+
+async function submitAllForms() {
+    if (activeForms.size === 0) {
+        showToast('没有待处理的表单', 'warning');
+        return;
+    }
+
+    if (!confirm(`确定要发送 ${activeForms.size} 个表单吗？`)) {
+        return;
+    }
+
+    try {
+        const validFormData = {};
+        let hasInvalid = false;
+
+        activeForms.forEach((form, formId) => {
+            const formData = { type: form.type };
+            
+            if (form.type === '1') {
+                if (!form.selected_text) {
+                    showToast(`表单 ${formId} 未选择选项`, 'warning');
+                    hasInvalid = true;
+                    return;
+                }
+                formData.selected_text = form.selected_text;
+                formData.selected_value = form.selected_value;
+            } else if (form.type === '2') {
+                const inputs = document.querySelectorAll(`[data-form-id="${formId}"] .form-input`);
+                const formDataObj = {};
+                let isValid = true;
+                
+                inputs.forEach(input => {
+                    const value = input.value.trim();
+                    const field = input.dataset.field;
+                    if (!value) {
+                        isValid = false;
+                        input.classList.add('error');
+                    } else {
+                        input.classList.remove('error');
+                        formDataObj[field] = value;
+                    }
+                });
+                
+                if (!isValid) {
+                    showToast(`表单 ${formId} 有未填写的字段`, 'warning');
+                    hasInvalid = true;
+                    return;
+                }
+                
+                formData.form_data = formDataObj;
+            }
+            
+            validFormData[formId] = formData;
+        });
+
+        if (hasInvalid) {
+            showToast('请完成所有表单后再提交', 'error');
+            return;
+        }
+
+        console.log('批量提交数据:', validFormData);
+
+        const response = await fetch('/api/submit_all', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                message: fullMessage,
-                meeting_info: {
-                    date: meetingDate,
-                    time: meetingTime,
-                    type: meetingType,
-                    topic: meetingTopic,
-                    attendees: meetingAttendees
-                },
-                conversation_id: currentConversationId,
-                option_value: optionValue
+                form_data: validFormData
             })
         });
 
         const data = await response.json();
+        console.log('批量提交响应:', data);
 
-        if (data.status === "success") {
-            if (!currentConversationId) {
-                currentConversationId = data.conversationId;
-            }
-            typeWriter(`${data.timestamp}: ${data.message}\n`, false);
-            addToHistory(data.timestamp, data.message);
-            if (!isAutoSend) {
-                input.value = '';
-            }
-            showToast('消息发送成功', 'success');
-        } else if (data.blocked_by_options) {
-            showToast('请先处理当前选项', 'warning');
-            typeWriter(`系统: ${data.message}\n`, false);
-            setTimeout(checkForOptions, 500);
+        if (data.status === 'success') {
+            const input = document.getElementById('message-input');
+            input.value = data.combined_message;
+
+            await sendMessage(true, 'batch');
+
+            clearAllForms();
+            showToast(`已提交 ${data.count} 个表单`, 'success');
         } else {
-            updateStatus(`错误: ${data.message}`, true);
-            addToHistory(data.timestamp, `[错误] ${data.message}`);
-            showToast(data.message, 'error');
+            showToast(data.message || '批量提交失败', 'error');
         }
     } catch (error) {
-        console.error('发送消息失败:', error);
-        updateStatus(`请求失败: ${error.message}`, true);
-        const timestamp = new Date().toLocaleString();
-        addToHistory(timestamp, `[网络错误] ${error.message}`);
-        showToast(`发送失败: ${error.message}`, 'error');
-    } finally {
-        sendBtn.classList.remove('loading');
-        isProcessing = false;
-        lockUI(false);
-        input.focus();
-        updateStatus("准备就绪");
+        console.error('批量提交失败:', error);
+        showToast('批量提交失败: ' + error.message, 'error');
     }
 }
 
-// ====== 界面功能 ======
-function createDecorativeBubbles() {
-    const container = document.getElementById('bubbles-container');
-    if (!container) return;
-
-    const phrases = [
-        "今天下午三点到四点和毛裤侠开会吧",
-        "明天上午10点可以预约B栋会议室",
-        "会议时长建议控制在1小时内",
-        "早上8点前的会议需要特别留意",
-        "可以选择Webex线上会议",
-        "预约B栋会议室",
-        "支持随机分配空闲会议室",
-        "输入'帮助'查看所有功能",
-        "支持添加会议提醒功能",
-        "周末不可以开会，注意休息哦",
-        "会议前会发送提醒",
-        "记得提前测试会议设备"
-    ];
-
-    for (let i = 0; i < 8; i++) {
-        createBubble(container, phrases, i * 300);
+function removeForm(formId) {
+    const formElement = document.querySelector(`[data-form-id="${formId}"]`);
+    if (formElement) {
+        formElement.style.opacity = '0';
+        formElement.style.transform = 'translateX(-20px)';
+        setTimeout(() => {
+            if (formElement.parentNode) {
+                formElement.remove();
+            }
+        }, 300);
     }
 
-    setInterval(() => {
-        createBubble(container, phrases);
-    }, 8000);
+    activeForms.delete(formId);
+    updateFormCount(activeForms.size);
 }
 
-function createBubble(container, phrases, delay = 0) {
-    setTimeout(() => {
-        if (!container) return;
+async function clearAllForms() {
+    if (activeForms.size === 0) return;
 
-        const bubble = document.createElement('div');
-        bubble.className = 'bubble';
-        bubble.style.left = `${Math.random() * 100}%`;
-        bubble.style.bottom = '-20px';
-        bubble.style.animationDuration = `${10 + Math.random() * 10}s`;
-        bubble.textContent = phrases[Math.floor(Math.random() * phrases.length)];
-        container.appendChild(bubble);
-
-        const timeout = setTimeout(() => {
-            bubble.remove();
-        }, 15000);
-
-        bubble.addEventListener('animationend', () => {
-            clearTimeout(timeout);
-            bubble.remove();
-        });
-    }, delay);
-}
-
-function playNotificationSound() {
     try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
+        const response = await fetch('/api/clear_forms', {
+            method: 'POST'
+        });
 
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-
-        oscillator.frequency.value = 800;
-        oscillator.type = 'sine';
-
-        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.2);
-    } catch (e) {
-        console.log('音频播放失败，使用静音模式');
+        const data = await response.json();
+        if (data.status === 'success') {
+            activeForms.clear();
+            const container = document.getElementById('forms-container');
+            if (container) {
+                container.innerHTML = '';
+            }
+            updateFormCount(0);
+            showToast(`已清空 ${data.count} 个表单`, 'info');
+        }
+    } catch (error) {
+        console.error('清空表单失败:', error);
     }
 }
 
-// ====== 事件监听器 ======
-function setupEventListeners() {
-    const sendBtn = document.getElementById('send-button');
-    if (sendBtn) {
-        sendBtn.addEventListener('click', debounce(sendMessage, 300));
+// ====== 工具函数 ======
+function updateFormCount(count) {
+    const countElement = document.getElementById('form-count');
+    if (countElement) {
+        countElement.textContent = `待处理: ${count}`;
+        countElement.classList.toggle('has-forms', count > 0);
+        
+        // 如果是全局表单，添加提示
+        if (count > 0) {
+            countElement.title = "这是全局表单，所有用户共享";
+        }
     }
 
-    const messageInput = document.getElementById('message-input');
-    if (messageInput) {
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-
-        messageInput.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-        });
-    }
-
-    const resetBtn = document.getElementById('reset-btn');
-    if (resetBtn) {
-        resetBtn.addEventListener('click', () => {
-            if (confirm('确定要重置会话吗？这将清除所有历史消息。')) {
-                fetch('/reset', { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === 'success') {
-                            currentConversationId = null;
-                            isShowingOptions = false;
-                            processedOptionIds.clear();
-                            const outputEl = document.getElementById('agent-output');
-                            if (outputEl) {
-                                outputEl.innerHTML = '会议助手已启动，请输入您的需求...';
-                            }
-                            const historyDiv = document.getElementById('message-history');
-                            if (historyDiv) {
-                                historyDiv.innerHTML = '';
-                            }
-                            showToast('会话已重置', 'success');
-                        }
-                    })
-                    .catch(error => {
-                        showToast('重置失败', 'error');
-                    });
-            }
-        });
+    const globalActions = document.getElementById('global-actions');
+    if (globalActions) {
+        globalActions.style.display = count > 0 ? 'flex' : 'none';
     }
 }
 
 // ====== 初始化 ======
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('AUKS会议预约助手初始化...');
+    console.log('? AUKS会议助手 - 全局弹窗版初始化...');
 
-    createDecorativeBubbles();
-    setupEventListeners();
-
-    // 启动选项检查轮询
-    optionsCheckInterval = setInterval(checkForOptions, 2000);
+    // 启动表单检查轮询
+    formsCheckInterval = setInterval(checkForForms, 1000);
 
     // 立即检查一次
-    setTimeout(checkForOptions, 1000);
+    setTimeout(checkForForms, 500);
 
-    // 页面可见性变化
-    document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-            clearInterval(optionsCheckInterval);
-            console.log('页面隐藏，暂停选项检查');
-        } else {
-            if (optionsCheckInterval) clearInterval(optionsCheckInterval);
-            optionsCheckInterval = setInterval(checkForOptions, 2000);
-            console.log('页面显示，恢复选项检查');
-            checkForOptions();
-        }
-    });
-
-    window.addEventListener('beforeunload', () => {
-        clearInterval(optionsCheckInterval);
-        if (typingInterval) clearInterval(typingInterval);
-    });
-
-    console.log('初始化完成');
+    console.log('? 全局弹窗系统初始化完成');
 });
+
+// ====== 添加全局表单状态显示 ======
+function addGlobalStatusDisplay() {
+    const statusDiv = document.createElement('div');
+    statusDiv.id = 'global-status';
+    statusDiv.style.cssText = `
+        position: fixed;
+        bottom: 10px;
+        left: 10px;
+        background: #0066cc;
+        color: white;
+        padding: 5px 10px;
+        border-radius: 3px;
+        font-size: 12px;
+        z-index: 10000;
+    `;
+    statusDiv.textContent = '? 全局模式';
+    document.body.appendChild(statusDiv);
+}
+
+// 在初始化后调用
+setTimeout(addGlobalStatusDisplay, 1000);
