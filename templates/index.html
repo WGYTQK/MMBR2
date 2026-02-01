@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AUKS_会议预约助手</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💬</text></svg>">
+    <meta name="description" content="智能会议预约助手 - 支持多表单收集">
+    <style>
+        /* 内联样式确保快速加载 */
+        .compact-layout {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 16px;
+            height: calc(100vh - 180px);
+        }
+
+        @media (max-width: 900px) {
+            .compact-layout {
+                grid-template-columns: 1fr;
+                height: auto;
+            }
+        }
+
+        /* 灰色占位符样式 */
+        .compact-input::placeholder,
+        .participants-textarea::placeholder {
+            color: #999;
+            font-style: italic;
+        }
+
+        /* 表单字段样式 */
+        .compact-form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .compact-row {
+            min-height: 36px;
+        }
+
+        /* 人员输入区域样式 */
+        .participants-row {
+            margin-top: auto;
+        }
+
+        .participants-textarea {
+            width: 100%;
+            min-height: 60px;
+            padding: 8px 12px;
+            border: 1px solid #d9e7ff;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            resize: vertical;
+            font-family: inherit;
+            background-color: white;
+        }
+
+        .participants-textarea:focus {
+            outline: none;
+            border-color: #4da6ff;
+            box-shadow: 0 0 0 2px rgba(77, 166, 255, 0.1);
+        }
+
+        .participants-hint {
+            font-size: 0.8rem;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        /* 输出区域样式 */
+        .output-row {
+            display: none; /* 默认不显示output字段 */
+        }
+    </style>
+</head>
+<body>
+    <!-- 装饰气泡 -->
+    <div class="decorative-bubbles" id="bubbles-container" aria-hidden="true"></div>
+
+    <!-- 主容器 -->
+    <div class="main-container">
+        <div class="content-wrapper">
+            <!-- 头部 -->
+            <div class="app-header">
+                <h1>AUKS_会议预约助手</h1>
+                <div class="status-group">
+                    <div id="status">状态: <span class="status-text ready">准备就绪</span></div>
+                    <button id="reset-btn" class="icon-btn" title="重置会话">🔄</button>
+                </div>
+            </div>
+
+            <!-- 紧凑布局：左侧会议信息，右侧AI对话 -->
+            <div class="compact-layout">
+                <!-- 左侧：会议信息卡片 -->
+                <div class="meeting-card">
+                    <div class="card-header">
+                        <h3><span class="icon">📋</span> 会议信息</h3>
+                        <div class="card-actions">
+                            <button id="send-meeting-info" class="small-btn" title="发送会议信息">📨 发送</button>
+                            <button id="clear-meeting-info" class="small-btn" title="清空信息">🗑️ 清空</button>
+                        </div>
+                    </div>
+
+                    <div class="compact-form">
+                        <!-- 重新排列字段顺序 -->
+                        <div class="compact-row">
+                            <div class="compact-label">
+                                <label for="meeting-time">⏰ 会议时间:</label>
+                            </div>
+                            <input type="text" id="meeting-time" class="compact-input"
+                                   placeholder="例如：下周一上午十点到十二点">
+                        </div>
+
+                        <div class="compact-row">
+                            <div class="compact-label">
+                                <label for="meeting-topic">📝 会议主题:</label>
+                            </div>
+                            <input type="text" id="meeting-topic" class="compact-input"
+                                   placeholder="例如：Sagent讨论">
+                        </div>
+
+                        <div class="compact-row">
+                            <div class="compact-label">
+                                <label for="meeting-location">📍 会议地点:</label>
+                            </div>
+                            <input type="text" id="meeting-location" class="compact-input"
+                                   placeholder="例如：T栋203">
+                        </div>
+
+                        <div class="compact-row">
+                            <div class="compact-label">
+                                <label>📱 会议形式:</label>
+                            </div>
+                            <div class="compact-options">
+                                <label class="compact-option">
+                                    <input type="radio" name="meeting-type" value="线上" checked>
+                                    <span>线上</span>
+                                </label>
+                                <label class="compact-option">
+                                    <input type="radio" name="meeting-type" value="线下">
+                                    <span>线下</span>
+                                </label>
+                                <label class="compact-option">
+                                    <input type="radio" name="meeting-type" value="线上+线下">
+                                    <span>线上+线下</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="compact-options">
+                            <div class="compact-label">
+                                <label for="meeting-participants">👥 人员:</label>
+                            </div>
+                            <div style="flex: 1;">
+                                <textarea id="meeting-participants" class="participants-textarea"
+                                          placeholder="请填写参会人员，例如：张三，李四，王五"></textarea>
+                                <div class="participants-hint">提示：可直接在右侧对话框输入会议信息</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 右侧：AI对话区域 -->
+                <div class="chat-card">
+                    <div class="card-header">
+                        <h3><span class="icon">💬</span> Sagent会议预约助手</h3>
+                        <div class="card-actions">
+                            <button id="clear-output-btn" class="small-btn" title="清空对话">🗑️</button>
+                            <button id="scroll-down-btn" class="small-btn" title="滚动到底部">↓</button>
+                        </div>
+                    </div>
+
+                    <!-- 对话输出区 -->
+                    <div id="agent-output" class="chat-output" role="log" aria-live="polite">
+                        <div class="welcome-message">
+                            <strong>欢迎使用会议预约助手！</strong><br><br>
+                            <small>使用方法：</small>
+                            <ul>
+                                <li>在左侧填写会议信息（可选）</li>
+                                <li>在下方用口语描述会议信息（可选）</li>
+                                <li>AI回复中的会议信息会自动更新到左侧表单</li>
+                            </ul>
+                            例如输入：<em>"我想预约明天下午2点的技术分享会，地点在B栋201，和张三一块"</em><br>
+                        </div>
+                    </div>
+
+                    <!-- 输入区域 -->
+                    <div class="chat-input-area">
+                        <div class="input-wrapper">
+                            <textarea id="message-input"
+                                      placeholder="与会议预约助手交流会议安排...（按Enter发送，Shift+Enter换行）"
+                                      aria-label="消息输入框"
+                                      autofocus></textarea>
+                            <button id="send-button" aria-label="发送消息">
+                                <span id="send-text">发送</span>
+                                <span id="send-spinner" class="spinner" style="display: none;"></span>
+                            </button>
+                        </div>
+                        <div class="input-hint">
+                            <small>💡 提示：可以描述会议需求，助手会自动提取并转换关键信息至左侧</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知容器 -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- 脚本 -->
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
